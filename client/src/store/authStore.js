@@ -1,42 +1,57 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-// Dummy user data for demonstration
-const DEMO_USER = {
-  id: 'user-1',
-  name: 'John Smith',
-  email: 'john@example.com',
-  avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=400&fit=crop&crop=faces',
-  preferences: {
-    theme: 'light',
-    notifications: true,
-  },
-};
-
 export const useAuthStore = create(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
+      users: [], // Store multiple users
       isAuthenticated: false,
       isLoading: false,
       error: null,
 
+      register: async ({ name, email, password }) => {
+        set({ isLoading: true, error: null });
+
+        try {
+          const existingUsers = get().users;
+
+          // Check if the email is already registered
+          if (existingUsers.some((user) => user.email === email)) {
+            throw new Error('Email already in use');
+          }
+
+          const newUser = { id: Date.now(), name, email, password };
+          set({
+            users: [...existingUsers, newUser], // Store new user
+            user: newUser,
+            isAuthenticated: true,
+            isLoading: false,
+          });
+        } catch (error) {
+          set({
+            error: error instanceof Error ? error.message : 'Registration failed',
+            isLoading: false,
+          });
+        }
+      },
+
       login: async (email, password) => {
         set({ isLoading: true, error: null });
-        try {
-          // Simulate API call delay
-          await new Promise((resolve) => setTimeout(resolve, 1000));
 
-          // Demo login - in real app this would validate against a backend
-          if (email === 'demo@example.com' && password === 'password') {
-            set({
-              user: DEMO_USER,
-              isAuthenticated: true,
-              isLoading: false,
-            });
-          } else {
+        try {
+          const users = get().users;
+          const user = users.find((u) => u.email === email && u.password === password);
+
+          if (!user) {
             throw new Error('Invalid email or password');
           }
+
+          set({
+            user,
+            isAuthenticated: true,
+            isLoading: false,
+          });
         } catch (error) {
           set({
             error: error instanceof Error ? error.message : 'Login failed',
@@ -52,26 +67,9 @@ export const useAuthStore = create(
           error: null,
         });
       },
-
-      updateUser: (updates) => {
-        set((state) => ({
-          user: state.user ? { ...state.user, ...updates } : null,
-        }));
-      },
-
-      updatePreferences: (preferences) => {
-        set((state) => ({
-          user: state.user
-            ? {
-              ...state.user,
-              preferences: { ...state.user.preferences, ...preferences },
-            }
-            : null,
-        }));
-      },
     }),
     {
-      name: 'auth-storage',
+      name: 'auth-storage', // Saves data in localStorage
     }
   )
 );
