@@ -1,75 +1,95 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { useJournalStore } from './journalStore';
+import { useMedicationStore } from './medicationStore';
+import { useHealthMetricsStore } from './healthMetricsStore';
+import { useSymptomStore } from './symptomStore';
 
 export const useAuthStore = create(
   persist(
     (set, get) => ({
       user: null,
-      users: [], // Store multiple users
+      users: [],
       isAuthenticated: false,
       isLoading: false,
       error: null,
 
       register: async ({ name, email, password }) => {
         set({ isLoading: true, error: null });
-
         try {
           const existingUsers = get().users;
 
-          // Check if the email is already registered
-          if (existingUsers.some((user) => user.email === email)) {
+          if (existingUsers.some(user => user.email === email)) {
             throw new Error('Email already in use');
           }
 
-          const newUser = { id: Date.now(), name, email, password };
+          const newUser = {
+            id: `user-${Date.now()}`,
+            name,
+            email,
+            password
+          };
+
           set({
-            users: [...existingUsers, newUser], // Store new user
+            users: [...existingUsers, newUser],
             user: newUser,
             isAuthenticated: true,
-            isLoading: false,
+            isLoading: false
           });
+          return true;
         } catch (error) {
-          set({
-            error: error instanceof Error ? error.message : 'Registration failed',
-            isLoading: false,
-          });
+          set({ error: error.message, isLoading: false });
+          return false;
         }
       },
 
       login: async (email, password) => {
         set({ isLoading: true, error: null });
-
         try {
           const users = get().users;
-          const user = users.find((u) => u.email === email && u.password === password);
+          const user = users.find(u => u.email === email && u.password === password);
 
-          if (!user) {
-            throw new Error('Invalid email or password');
+          // Demo user access
+          if (email === 'demo@example.com' && password === 'password') {
+            set({
+              user: { id: 'demo', name: 'Demo User', email: 'demo@example.com' },
+              isAuthenticated: true,
+              isLoading: false
+            });
+            // Reset all stores for demo user
+            useMedicationStore.getState().resetMedications();
+            useHealthMetricsStore.getState().resetMetrics();
+            useJournalStore.getState().resetLogs();
+            useSymptomStore.getState().resetSymptoms();
+            return true;
           }
+
+          if (!user) throw new Error('Invalid email or password');
 
           set({
             user,
             isAuthenticated: true,
-            isLoading: false,
+            isLoading: false
           });
+          return true;
         } catch (error) {
-          set({
-            error: error instanceof Error ? error.message : 'Login failed',
-            isLoading: false,
-          });
+          set({ error: error.message, isLoading: false });
+          return false;
         }
       },
 
       logout: () => {
-        set({
-          user: null,
-          isAuthenticated: false,
-          error: null,
-        });
+        // Clear all stores
+        useJournalStore.getState().resetLogs();
+        useMedicationStore.getState().resetMedications();
+        useHealthMetricsStore.getState().resetMetrics();
+        useSymptomStore.getState().resetSymptoms();
+        set({ user: null, isAuthenticated: false });
       },
     }),
     {
-      name: 'auth-storage', // Saves data in localStorage
+      name: 'auth-storage',
+      storage: localStorage, 
     }
   )
 );
